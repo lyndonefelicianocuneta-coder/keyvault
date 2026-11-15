@@ -1614,7 +1614,31 @@
   init();
 
   // Offline install support (only works when served over http/https, not from a double-clicked file)
+  async function checkOfflineReady() {
+    const el = $('offlineStatus');
+    try {
+      const keys = await caches.keys();
+      let ready = false;
+      for (const k of keys) {
+        if (!k.startsWith('keyvault-')) continue;
+        const c = await caches.open(k);
+        const hits = await Promise.all(['index.html', 'styles.css', 'app.js'].map((f) => c.match(f)));
+        if (hits.every(Boolean)) { ready = true; break; }
+      }
+      el.textContent = ready ? '\u2713 Works offline on this device' : 'Getting ready for offline use\u2026 keep this open with internet for a moment';
+      el.classList.toggle('ready', ready);
+      el.hidden = false;
+      return ready;
+    } catch { return false; }
+  }
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.ready.then(async () => {
+      for (let i = 0; i < 20; i++) {           // re-check for up to ~20 s while caching finishes
+        if (await checkOfflineReady()) break;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }).catch(() => {});
+    checkOfflineReady();
   }
 })();
