@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#0B1220">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="KEYVAULT">
+  <title>KEYVAULT</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230B1220'/%3E%3Ccircle cx='12' cy='16' r='5' fill='none' stroke='%23B99AFF' stroke-width='2.5'/%3E%3Cpath d='M17 16h9m-3 0v4' stroke='%23B99AFF' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ============ LOCK / SETUP SCREEN ============ -->
+  <section id="lockScreen" class="lock" aria-label="Vault login">
+    <div class="lock-card">
+      <div class="brand brand-lg">
+        <span class="brand-mark" data-icon="key"></span>
+        <div>
+          <div class="brand-name">KEYVAULT</div>
+          <div class="brand-sub">Personal Credential Vault</div>
+        </div>
+      </div>
+
+      <form id="lockForm" class="lock-form" autocomplete="off" novalidate>
+        <h1 id="lockTitle" class="lock-title">Unlock your vault</h1>
+        <p id="lockHint" class="muted small">Enter your master password.</p>
+
+        <!-- hidden username helps the browser treat this as a login form -->
+        <input type="text" name="username" value="keyvault" autocomplete="username" class="sr-only" tabindex="-1" aria-hidden="true">
+
+        <label class="field">
+          <span class="field-label" id="masterLabel">Master password</span>
+          <span class="input-wrap">
+            <input id="masterInput" type="password" autocomplete="current-password" spellcheck="false" autocapitalize="off" required>
+            <button type="button" class="icon-btn in-input" data-reveal="masterInput" aria-label="Show password"><span data-icon="eye"></span></button>
+          </span>
+        </label>
+
+        <div id="setupFields" hidden>
+          <label class="field">
+            <span class="field-label">Confirm master password</span>
+            <span class="input-wrap">
+              <input id="confirmInput" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off">
+              <button type="button" class="icon-btn in-input" data-reveal="confirmInput" aria-label="Show password"><span data-icon="eye"></span></button>
+            </span>
+          </label>
+          <div class="strength" aria-live="polite">
+            <div class="strength-bar"><span id="strengthFill"></span></div>
+            <span id="strengthText" class="muted small">At least 10 characters</span>
+          </div>
+          <div class="warning">
+            <span data-icon="alert"></span>
+            <p><strong>There is no password recovery.</strong> Your master password is never stored. If you lose it, the encrypted vault cannot be opened by anyone — including you.</p>
+          </div>
+        </div>
+
+        <p id="lockError" class="form-error" role="alert"></p>
+        <p id="lockInfo" class="form-info" role="status"></p>
+
+        <button id="unlockBtn" type="submit" class="btn primary block">
+          <span data-icon="unlock"></span><span id="unlockBtnText">Unlock Vault</span>
+        </button>
+
+        <div class="lock-links">
+          <button id="restoreBtn" type="button" class="link-btn" hidden>Restore from encrypted backup</button>
+          <button id="eraseBtn" type="button" class="link-btn subtle" hidden>Forgot password? Erase vault</button>
+        </div>
+      </form>
+
+      <p class="lock-foot"><span data-icon="shield"></span>AES-256-GCM · encrypted on this device · nothing is sent anywhere</p>
+    </div>
+  </section>
+
+  <!-- ============ MAIN APP ============ -->
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" data-icon="key"></span>
+        <div>
+          <div class="brand-name">KEYVAULT</div>
+          <div class="brand-sub">Personal Credential Vault</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span id="countBadge" class="count-badge">0 accounts</span>
+        <div class="menu-wrap">
+          <button id="menuBtn" class="icon-btn" aria-label="Backup options" aria-haspopup="true" aria-expanded="false"><span data-icon="more"></span></button>
+          <div id="menu" class="menu" role="menu" hidden>
+            <button role="menuitem" id="exportBtn"><span data-icon="download"></span>Download encrypted backup</button>
+            <button role="menuitem" id="importBtn"><span data-icon="upload"></span>Restore / merge backup</button>
+          </div>
+        </div>
+        <button id="lockBtn" class="btn ghost sm"><span data-icon="lock"></span><span class="hide-xs">Lock Vault</span></button>
+      </div>
+    </header>
+
+    <section class="controls">
+      <nav class="tabs" role="tablist" aria-label="Vault sections">
+        <button type="button" class="tab on" data-view="accounts" role="tab" aria-selected="true"><span data-icon="key"></span>Accounts <span class="n" id="tabCountA">0</span></button>
+        <button type="button" class="tab" data-view="photos" role="tab" aria-selected="false"><span data-icon="idcard"></span>ID Photos <span class="n" id="tabCountP">0</span></button>
+      </nav>
+      <div class="search-row">
+        <label class="search">
+          <span data-icon="search"></span>
+          <input id="searchInput" type="search" placeholder="Search name, user or category" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="Search credentials">
+          <button id="clearSearch" type="button" class="icon-btn tiny" aria-label="Clear search" hidden><span data-icon="x"></span></button>
+        </label>
+        <button id="addBtn" class="btn primary add-btn" aria-label="Add Credential"><span data-icon="plus"></span><span class="hide-sm" id="addLabel">Add Credential</span></button>
+      </div>
+      <div class="filter-row">
+        <div id="chips" class="chips" role="tablist" aria-label="Filter by category"></div>
+        <label class="sort">
+          <span data-icon="sort"></span>
+          <select id="sortSelect" aria-label="Sort credentials" title="Sort: A–Z, Z–A, recently added (Newest) or recently updated">
+            <option value="az">A–Z</option>
+            <option value="za">Z–A</option>
+            <option value="added">Newest</option>
+            <option value="updated">Updated</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <main class="list-wrap" id="listWrap">
+      <div id="listMeta" class="list-meta" hidden></div>
+      <ul id="list" class="list" aria-label="Saved accounts"></ul>
+      <div id="photoGrid" class="photo-grid" aria-label="Saved ID photos" hidden></div>
+      <div id="emptyState" class="empty" hidden></div>
+    </main>
+
+    <button id="fab" class="fab" aria-label="Add Credential"><span data-icon="plus"></span></button>
+  </div>
+
+  <!-- ============ ADD / EDIT DIALOG ============ -->
+  <dialog id="editDialog" class="sheet" aria-labelledby="editTitle">
+    <form id="editForm" class="sheet-form" autocomplete="off" novalidate>
+      <header class="sheet-head">
+        <h2 id="editTitle">Add Credential</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Close"><span data-icon="x"></span></button>
+      </header>
+
+      <div class="sheet-body">
+        <details id="pasteBox" class="paste-box">
+          <summary><span data-icon="clipboard"></span>Paste from email <span class="muted small">— auto-fill fields</span></summary>
+          <textarea id="pasteText" rows="4" placeholder="Paste the email text here. The URL, username/email and password are detected automatically." spellcheck="false"></textarea>
+          <button type="button" id="parseBtn" class="btn ghost sm">Fill fields</button>
+        </details>
+
+        <label class="field">
+          <span class="field-label">Website / Application name <em>*</em></span>
+          <input id="fName" type="text" maxlength="120" required placeholder="e.g. Netflix">
+        </label>
+        <label class="field">
+          <span class="field-label">Website URL</span>
+          <input id="fUrl" type="text" inputmode="url" maxlength="500" placeholder="netflix.com" spellcheck="false" autocapitalize="off">
+        </label>
+        <label class="field">
+          <span class="field-label">Username / Email</span>
+          <input id="fUser" type="text" maxlength="250" placeholder="you@example.com" spellcheck="false" autocapitalize="off" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="field-label">Password <em>*</em></span>
+          <span class="input-wrap two">
+            <input id="fPass" type="password" maxlength="500" required spellcheck="false" autocapitalize="off" autocomplete="new-password">
+            <button type="button" class="icon-btn in-input" data-reveal="fPass" aria-label="Show password"><span data-icon="eye"></span></button>
+            <button type="button" id="genBtn" class="icon-btn in-input" aria-label="Generate password" title="Generate password"><span data-icon="refresh"></span></button>
+          </span>
+        </label>
+        <div class="field-grid">
+          <label class="field">
+            <span class="field-label">Category</span>
+            <select id="fCat"></select>
+          </label>
+          <label class="check">
+            <input id="fFav" type="checkbox">
+            <span data-icon="star"></span> Favorite
+          </label>
+        </div>
+        <label class="field">
+          <span class="field-label">Notes</span>
+          <textarea id="fNotes" rows="2" maxlength="2000" placeholder="Optional"></textarea>
+        </label>
+        <p id="editError" class="form-error" role="alert"></p>
+      </div>
+
+      <footer class="sheet-foot">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="button" id="saveNewBtn" class="btn secondary">Save &amp; New</button>
+        <button type="submit" class="btn primary">Save Credential</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- ============ ADD / EDIT ID PHOTOS DIALOG ============ -->
+  <dialog id="photoDialog" class="sheet" aria-labelledby="photoTitle">
+    <form id="photoForm" class="sheet-form" autocomplete="off" novalidate>
+      <header class="sheet-head">
+        <h2 id="photoTitle">Add ID</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Close"><span data-icon="x"></span></button>
+      </header>
+      <div class="sheet-body">
+        <label class="field">
+          <span class="field-label">Name <em>*</em></span>
+          <input id="pTitle" type="text" maxlength="120" placeholder="e.g. My Passport">
+        </label>
+        <label class="field">
+          <span class="field-label">ID type</span>
+          <select id="pType"></select>
+        </label>
+        <div class="field">
+          <span class="field-label">Photos <em>*</em> <span class="muted">— front, back, or extra pages</span></span>
+          <div id="imgSlots" class="img-slots"></div>
+        </div>
+        <p class="hint"><span data-icon="shield"></span>Photos are resized, stripped of hidden location data, and encrypted before they are saved.</p>
+        <label class="field">
+          <span class="field-label">Notes</span>
+          <textarea id="pNotes" rows="2" maxlength="2000" placeholder="Optional — e.g. ID number, expiry date"></textarea>
+        </label>
+        <p id="photoError" class="form-error" role="alert"></p>
+      </div>
+      <footer class="sheet-foot">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" id="photoSaveBtn" class="btn primary">Save ID</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- ============ PHOTO VIEWER ============ -->
+  <dialog id="viewerDialog" class="viewer" aria-labelledby="vTitle">
+    <div class="viewer-head">
+      <div class="viewer-titles">
+        <div id="vTitle" class="v-title"></div>
+        <div id="vSub" class="v-sub"></div>
+      </div>
+      <button type="button" class="icon-btn" id="vClose" aria-label="Close viewer"><span data-icon="x"></span></button>
+    </div>
+    <div class="viewer-stage" id="vStage">
+      <button type="button" class="v-nav prev" id="vPrev" aria-label="Previous photo"><span data-icon="chevL"></span></button>
+      <img id="vImg" alt="">
+      <div id="vMsg" class="v-msg">Decrypting…</div>
+      <button type="button" class="v-nav next" id="vNext" aria-label="Next photo"><span data-icon="chevR"></span></button>
+    </div>
+    <div class="viewer-foot">
+      <div id="vNotes" class="v-notes"></div>
+      <div class="v-actions">
+        <button type="button" class="btn ghost" id="vEdit"><span data-icon="edit"></span>Edit</button>
+        <button type="button" class="btn ghost" id="vSave"><span data-icon="download"></span>Save copy</button>
+        <button type="button" class="btn ghost del" id="vDelete"><span data-icon="trash"></span>Delete</button>
+        <span class="d-timer" id="vTimer"></span>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ============ CONFIRM / PROMPT DIALOG ============ -->
+  <dialog id="askDialog" class="sheet small" aria-labelledby="askTitle">
+    <form id="askForm" class="sheet-form" autocomplete="off" novalidate>
+      <header class="sheet-head"><h2 id="askTitle">Confirm</h2></header>
+      <div class="sheet-body">
+        <p id="askMessage" class="ask-msg"></p>
+        <label id="askField" class="field" hidden>
+          <span id="askLabel" class="field-label"></span>
+          <input id="askInput" type="password" spellcheck="false" autocapitalize="off" autocomplete="off">
+        </label>
+        <p id="askError" class="form-error" role="alert"></p>
+      </div>
+      <footer class="sheet-foot">
+        <button type="button" class="btn ghost" id="askCancel">Cancel</button>
+        <button type="submit" class="btn primary" id="askOk">OK</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <input id="fileInput" type="file" accept=".json,application/json" hidden>
+  <input id="photoInput" type="file" accept="image/*" multiple hidden>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
